@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,7 +15,10 @@ import {
   CheckCircle,
   Calendar,
   Activity,
-  ArrowLeft
+  ArrowLeft,
+  Loader2,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react'
 
 interface AshaData {
@@ -29,99 +32,63 @@ interface AshaData {
   villages: string[]
 }
 
-// Mock ASHA data - neutral language focused on support needs
-const ashaData: AshaData[] = [
-  {
-    id: 'a1',
-    name: 'Sunita Devi',
-    block: 'Block A',
-    beneficiaries: 156,
-    recommendedLimit: 150,
-    lastVisitDays: 2,
-    coverageStatus: 'optimal',
-    villages: ['Rampur', 'Sitapur']
-  },
-  {
-    id: 'a2',
-    name: 'Meera Sharma',
-    block: 'Block A', 
-    beneficiaries: 189,
-    recommendedLimit: 150,
-    lastVisitDays: 1,
-    coverageStatus: 'needs-support',
-    villages: ['Gokulpur', 'Naya Gaon']
-  },
-  {
-    id: 'a3',
-    name: 'Priya Yadav',
-    block: 'Block B',
-    beneficiaries: 134,
-    recommendedLimit: 150,
-    lastVisitDays: 3,
-    coverageStatus: 'optimal',
-    villages: ['Shanti Nagar']
-  },
-  {
-    id: 'a4',
-    name: 'Kavita Singh',
-    block: 'Block B',
-    beneficiaries: 201,
-    recommendedLimit: 150,
-    lastVisitDays: 5,
-    coverageStatus: 'overloaded',
-    villages: ['Purana Gaon', 'Navin Basti', 'Gram Panchayat']
-  }
-]
+interface BlockSummary {
+  block: string
+  ashaCount: number
+  totalBeneficiaries: number
+  avgBeneficiariesPerAsha: number
+  underCoveredVillages: number
+  status: string
+}
 
-const blockSummary = [
-  {
-    block: 'Block A',
-    ashaCount: 8,
-    totalBeneficiaries: 1245,
-    avgBeneficiariesPerAsha: 156,
-    underCoveredVillages: 2,
-    status: 'needs-attention'
-  },
-  {
-    block: 'Block B',
-    ashaCount: 6,
-    totalBeneficiaries: 987,
-    avgBeneficiariesPerAsha: 165,
-    underCoveredVillages: 1,
-    status: 'needs-support'
-  },
-  {
-    block: 'Block C',
-    ashaCount: 5,
-    totalBeneficiaries: 678,
-    avgBeneficiariesPerAsha: 136,
-    underCoveredVillages: 0,
-    status: 'optimal'
-  }
-]
+interface UnderCoveredArea {
+  village: string
+  block: string
+  population: number
+  lastVisit: string
+  nearestAsha: string
+  priority: string
+}
 
-const underCoveredAreas = [
-  {
-    village: 'Remote Village A',
-    block: 'Block A',
-    population: 89,
-    lastVisit: '12 days ago',
-    nearestAsha: 'Sunita Devi (8km away)',
-    priority: 'high'
-  },
-  {
-    village: 'Hill Settlement B',
-    block: 'Block B', 
-    population: 67,
-    lastVisit: '8 days ago',
-    nearestAsha: 'Priya Yadav (6km away)',
-    priority: 'medium'
-  }
-]
+interface CapacityMetrics {
+  totalAshas: number
+  avgBeneficiariesPerAsha: number
+  needSupport: number
+  underCoveredVillages: number
+}
+
+interface CoverageData {
+  ashas: AshaData[]
+  blocks: BlockSummary[]
+  underCoveredAreas: UnderCoveredArea[]
+  capacityMetrics: CapacityMetrics
+}
 
 export default function AshaWforcePage() {
   const router = useRouter()
   const [selectedBlock, setSelectedBlock] = useState<string>('all')
+  const [data, setData] = useState<CoverageData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchCoverageData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/ngo/asha-coverage')
+      if (!response.ok) throw new Error('Failed to fetch coverage data')
+      const result = await response.json()
+      setData(result.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCoverageData()
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -143,9 +110,42 @@ export default function AshaWforcePage() {
     }
   }
 
-  const filteredAshaData = selectedBlock === 'all' 
-    ? ashaData 
-    : ashaData.filter(asha => asha.block === selectedBlock)
+  const filteredAshaData = !data ? [] : selectedBlock === 'all' 
+    ? data.ashas 
+    : data.ashas.filter(asha => asha.block === selectedBlock)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+          <p className="text-slate-600">Loading coverage data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="border-red-200 max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-red-700 mb-2">Error Loading Data</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={fetchCoverageData} className="bg-red-600 hover:bg-red-700">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!data) return null
+
+  const { ashas, blocks, underCoveredAreas, capacityMetrics } = data
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-6">
@@ -166,24 +166,29 @@ export default function AshaWforcePage() {
         </div>
 
         {/* Block Filter */}
-        <div className="flex gap-2">
-          {['all', 'Block A', 'Block B', 'Block C'].map((block) => (
-            <Button
-              key={block}
-              variant={selectedBlock === block ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedBlock(block)}
-              className={selectedBlock === block ? 'bg-slate-700' : 'border-slate-300'}
-            >
-              {block === 'all' ? 'All Blocks' : block}
-            </Button>
-          ))}
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={fetchCoverageData}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+          <div className="flex gap-2">
+            {['all', 'Block A', 'Block B', 'Block C'].map((block) => (
+              <Button
+                key={block}
+                variant={selectedBlock === block ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedBlock(block)}
+                className={selectedBlock === block ? 'bg-slate-700' : 'border-slate-300'}
+              >
+                {block === 'all' ? 'All Blocks' : block}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Block Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {blockSummary.map((block) => (
+        {blocks.map((block) => (
           <Card key={block.block} className="border-slate-200">
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
@@ -368,28 +373,28 @@ export default function AshaWforcePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-slate-200 text-center">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-slate-900">19</div>
+            <div className="text-2xl font-bold text-slate-900">{capacityMetrics.totalAshas}</div>
             <div className="text-sm text-slate-600">Total ASHAs</div>
           </CardContent>
         </Card>
         
         <Card className="border-slate-200 text-center">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-slate-900">152</div>
+            <div className="text-2xl font-bold text-slate-900">{capacityMetrics.avgBeneficiariesPerAsha}</div>
             <div className="text-sm text-slate-600">Avg Beneficiaries/ASHA</div>
           </CardContent>
         </Card>
         
         <Card className="border-slate-200 text-center">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-orange-600">2</div>
+            <div className="text-2xl font-bold text-orange-600">{capacityMetrics.needSupport}</div>
             <div className="text-sm text-slate-600">Need Support</div>
           </CardContent>
         </Card>
         
         <Card className="border-slate-200 text-center">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-red-600">3</div>
+            <div className="text-2xl font-bold text-red-600">{capacityMetrics.underCoveredVillages}</div>
             <div className="text-sm text-slate-600">Under-covered Villages</div>
           </CardContent>
         </Card>

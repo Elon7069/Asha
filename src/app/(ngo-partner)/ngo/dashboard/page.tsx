@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +16,9 @@ import {
   MapPin,
   Calendar,
   Activity,
-  ArrowLeft
+  ArrowLeft,
+  Loader2,
+  RefreshCw
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -28,46 +30,59 @@ interface DashboardStats {
   trend: 'up' | 'down' | 'stable'
 }
 
-// Mock aggregated data (district/block level only)
-const mockStats: DashboardStats = {
-  totalActiveWomen: 2847,
-  pregnantWomen: 342,
-  highRiskCases: 89,
-  redZoneAlerts: 23,
-  vaccinationCoverage: 87.5,
-  trend: 'up'
+interface DistrictData {
+  district: string
+  activeWomen: number
+  pregnantWomen: number
+  highRiskCases: number
+  alerts: number
+  vaccination: number
 }
 
-const districtData = [
-  {
-    district: 'Raipur',
-    activeWomen: 1256,
-    pregnantWomen: 156,
-    highRiskCases: 45,
-    alerts: 12,
-    vaccination: 89.2
-  },
-  {
-    district: 'Bilaspur', 
-    activeWomen: 987,
-    pregnantWomen: 120,
-    highRiskCases: 28,
-    alerts: 8,
-    vaccination: 85.1
-  },
-  {
-    district: 'Durg',
-    activeWomen: 604,
-    pregnantWomen: 66,
-    highRiskCases: 16,
-    alerts: 3,
-    vaccination: 88.7
-  }
-]
+interface SystemHealth {
+  ashaResponseTime: string
+  coverageGaps: string
+  emergencyResponse: string
+}
+
+interface Intervention {
+  title: string
+  description: string
+  type: 'warning' | 'info' | 'success'
+}
+
+interface DashboardData {
+  stats: DashboardStats
+  districts: DistrictData[]
+  systemHealth: SystemHealth
+  interventions: Intervention[]
+}
 
 export default function NGODashboardPage() {
   const router = useRouter()
   const [selectedMonth, setSelectedMonth] = useState('december-2025')
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchDashboardData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/ngo/stats?month=${selectedMonth}`)
+      if (!response.ok) throw new Error('Failed to fetch dashboard data')
+      const result = await response.json()
+      setData(result.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [selectedMonth])
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {
@@ -76,6 +91,57 @@ export default function NGODashboardPage() {
       default: return <Activity className="w-4 h-4 text-gray-600" />
     }
   }
+
+  const getInterventionStyle = (type: string) => {
+    switch (type) {
+      case 'warning': return 'bg-orange-50 border-orange-200'
+      case 'info': return 'bg-blue-50 border-blue-200'
+      case 'success': return 'bg-green-50 border-green-200'
+      default: return 'bg-gray-50 border-gray-200'
+    }
+  }
+
+  const getInterventionTextStyle = (type: string) => {
+    switch (type) {
+      case 'warning': return { title: 'text-orange-800', desc: 'text-orange-600' }
+      case 'info': return { title: 'text-blue-800', desc: 'text-blue-600' }
+      case 'success': return { title: 'text-green-800', desc: 'text-green-600' }
+      default: return { title: 'text-gray-800', desc: 'text-gray-600' }
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+          <p className="text-slate-600">Loading dashboard data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="border-red-200 max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-red-700 mb-2">Error Loading Data</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={fetchDashboardData} className="bg-red-600 hover:bg-red-700">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!data) return null
+
+  const { stats, districts, systemHealth, interventions } = data
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-6">
@@ -99,17 +165,22 @@ export default function NGODashboardPage() {
         </div>
         
         {/* Month Selector */}
-        <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="december-2025">December 2025</SelectItem>
-            <SelectItem value="november-2025">November 2025</SelectItem>
-            <SelectItem value="october-2025">October 2025</SelectItem>
-            <SelectItem value="september-2025">September 2025</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={fetchDashboardData}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="december-2025">December 2025</SelectItem>
+              <SelectItem value="november-2025">November 2025</SelectItem>
+              <SelectItem value="october-2025">October 2025</SelectItem>
+              <SelectItem value="september-2025">September 2025</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Key Stats Cards */}
@@ -124,7 +195,7 @@ export default function NGODashboardPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900">
-                  {mockStats.totalActiveWomen.toLocaleString()}
+                  {stats.totalActiveWomen.toLocaleString()}
                 </div>
                 <div className="text-sm text-slate-600">Total Active Women</div>
               </div>
@@ -141,7 +212,7 @@ export default function NGODashboardPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900">
-                  {mockStats.pregnantWomen}
+                  {stats.pregnantWomen}
                 </div>
                 <div className="text-sm text-slate-600">Pregnant Women</div>
               </div>
@@ -158,7 +229,7 @@ export default function NGODashboardPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900">
-                  {mockStats.highRiskCases}
+                  {stats.highRiskCases}
                 </div>
                 <div className="text-sm text-slate-600">High-Risk Cases</div>
               </div>
@@ -175,7 +246,7 @@ export default function NGODashboardPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900">
-                  {mockStats.redZoneAlerts}
+                  {stats.redZoneAlerts}
                 </div>
                 <div className="text-sm text-slate-600">Red-Zone Alerts (30d)</div>
               </div>
@@ -192,11 +263,11 @@ export default function NGODashboardPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900">
-                  {mockStats.vaccinationCoverage}%
+                  {stats.vaccinationCoverage}%
                 </div>
                 <div className="text-sm text-slate-600 flex items-center gap-1">
                   Vaccination Coverage
-                  {getTrendIcon(mockStats.trend)}
+                  {getTrendIcon(stats.trend)}
                 </div>
               </div>
             </div>
@@ -214,7 +285,7 @@ export default function NGODashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {districtData.map((district) => (
+            {districts.map((district) => (
               <motion.div
                 key={district.district}
                 initial={{ opacity: 0, y: 10 }}
@@ -268,15 +339,21 @@ export default function NGODashboardPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-slate-600">ASHA Response Time</span>
-                <Badge className="bg-green-100 text-green-700">Good</Badge>
+                <Badge className={`${systemHealth.ashaResponseTime === 'Good' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                  {systemHealth.ashaResponseTime}
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-600">Coverage Gaps</span>
-                <Badge className="bg-yellow-100 text-yellow-700">Needs Attention</Badge>
+                <Badge className={`${systemHealth.coverageGaps === 'Needs Attention' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                  {systemHealth.coverageGaps}
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-600">Emergency Response</span>
-                <Badge className="bg-green-100 text-green-700">Optimal</Badge>
+                <Badge className={`${systemHealth.emergencyResponse === 'Optimal' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                  {systemHealth.emergencyResponse}
+                </Badge>
               </div>
             </div>
           </CardContent>
@@ -289,18 +366,15 @@ export default function NGODashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                <div className="font-semibold text-orange-800">Nutrition Camp Needed</div>
-                <div className="text-sm text-orange-600">Block A showing high anemia cases</div>
-              </div>
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="font-semibold text-blue-800">Staff Support</div>
-                <div className="text-sm text-blue-600">3 villages under-covered</div>
-              </div>
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="font-semibold text-green-800">Scheme Awareness</div>
-                <div className="text-sm text-green-600">Good uptake in rural areas</div>
-              </div>
+              {interventions.map((intervention, index) => {
+                const textStyle = getInterventionTextStyle(intervention.type)
+                return (
+                  <div key={index} className={`p-3 border rounded-lg ${getInterventionStyle(intervention.type)}`}>
+                    <div className={`font-semibold ${textStyle.title}`}>{intervention.title}</div>
+                    <div className={`text-sm ${textStyle.desc}`}>{intervention.description}</div>
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>

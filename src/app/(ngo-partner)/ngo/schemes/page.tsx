@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,10 @@ import {
   MapPin,
   Calendar,
   IndianRupee,
-  ArrowLeft
+  ArrowLeft,
+  Loader2,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react'
 
 interface Scheme {
@@ -39,57 +42,21 @@ interface Scheme {
   lastUpdated: string
 }
 
-// Mock schemes data
-const mockSchemes: Scheme[] = [
-  {
-    id: 's1',
-    name: 'Pradhan Mantri Matru Vandana Yojana',
-    nameHindi: 'प्रधानमंत्री मातृ वंदना योजना',
-    description: 'Cash benefit for pregnant and lactating mothers for better nutrition and health care',
-    eligibility: ['Pregnant women', 'First living child', 'Age 19+ years'],
-    benefitAmount: 5000,
-    isActive: true,
-    districts: ['Raipur', 'Bilaspur', 'Durg'],
-    viewsCount: 1247,
-    eligiblePopulation: 2890,
-    createdDate: '2023-01-15',
-    lastUpdated: '2024-12-01'
-  },
-  {
-    id: 's2',
-    name: 'Janani Suraksha Yojana',
-    nameHindi: 'जननी सुरक्षा योजना',
-    description: 'Cash assistance for institutional delivery to reduce maternal and neonatal mortality',
-    eligibility: ['Pregnant women', 'BPL family', 'Institutional delivery'],
-    benefitAmount: 1400,
-    isActive: true,
-    districts: ['Raipur', 'Bilaspur'],
-    viewsCount: 987,
-    eligiblePopulation: 1567,
-    createdDate: '2023-03-10',
-    lastUpdated: '2024-11-15'
-  },
-  {
-    id: 's3',
-    name: 'Mukhyamantri Suposhan Yojana',
-    nameHindi: 'मुख्यमंत्री सुपोषण योजना',
-    description: 'State scheme for nutrition support to pregnant and lactating mothers',
-    eligibility: ['Pregnant women', 'Lactating mothers', 'State resident'],
-    benefitAmount: 3000,
-    isActive: false,
-    districts: ['Durg'],
-    viewsCount: 456,
-    eligiblePopulation: 890,
-    createdDate: '2023-06-20',
-    lastUpdated: '2024-10-05'
-  }
-]
+interface SchemesSummary {
+  totalSchemes: number
+  activeSchemes: number
+  totalViews: number
+  totalEligible: number
+}
 
 export default function SchemeMgmtPage() {
   const router = useRouter()
-  const [schemes, setSchemes] = useState(mockSchemes)
+  const [schemes, setSchemes] = useState<Scheme[]>([])
+  const [summary, setSummary] = useState<SchemesSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingScheme, setEditingScheme] = useState<Scheme | null>(null)
+  const [saving, setSaving] = useState(false)
   const [newScheme, setNewScheme] = useState({
     name: '',
     nameHindi: '',
@@ -99,45 +66,111 @@ export default function SchemeMgmtPage() {
     districts: ''
   })
 
-  const handleAddScheme = () => {
-    const scheme: Scheme = {
-      id: `s${schemes.length + 1}`,
-      name: newScheme.name,
-      nameHindi: newScheme.nameHindi,
-      description: newScheme.description,
-      eligibility: newScheme.eligibility.split(',').map(e => e.trim()),
-      benefitAmount: parseInt(newScheme.benefitAmount),
-      isActive: true,
-      districts: newScheme.districts.split(',').map(d => d.trim()),
-      viewsCount: 0,
-      eligiblePopulation: 0,
-      createdDate: new Date().toISOString().split('T')[0],
-      lastUpdated: new Date().toISOString().split('T')[0]
+  const fetchSchemes = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/ngo/schemes')
+      if (!response.ok) throw new Error('Failed to fetch schemes')
+      const result = await response.json()
+      setSchemes(result.data.schemes)
+      setSummary(result.data.summary)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
     }
-    
-    setSchemes([...schemes, scheme])
-    setNewScheme({
-      name: '',
-      nameHindi: '',
-      description: '',
-      eligibility: '',
-      benefitAmount: '',
-      districts: ''
-    })
-    setIsAddDialogOpen(false)
   }
 
-  const toggleSchemeStatus = (schemeId: string) => {
-    setSchemes(schemes.map(scheme => 
-      scheme.id === schemeId 
-        ? { ...scheme, isActive: !scheme.isActive, lastUpdated: new Date().toISOString().split('T')[0] }
-        : scheme
-    ))
+  useEffect(() => {
+    fetchSchemes()
+  }, [])
+
+  const handleAddScheme = async () => {
+    setSaving(true)
+    try {
+      const response = await fetch('/api/ngo/schemes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newScheme.name,
+          nameHindi: newScheme.nameHindi,
+          description: newScheme.description,
+          eligibility: newScheme.eligibility.split(',').map(e => e.trim()),
+          benefitAmount: parseInt(newScheme.benefitAmount) || 0,
+          districts: newScheme.districts.split(',').map(d => d.trim()),
+          isActive: true
+        })
+      })
+      
+      if (!response.ok) throw new Error('Failed to create scheme')
+      
+      const result = await response.json()
+      setSchemes([...schemes, result.data])
+      setNewScheme({
+        name: '',
+        nameHindi: '',
+        description: '',
+        eligibility: '',
+        benefitAmount: '',
+        districts: ''
+      })
+      setIsAddDialogOpen(false)
+      fetchSchemes() // Refresh to get updated summary
+    } catch (err) {
+      alert('Failed to add scheme. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const totalViews = schemes.reduce((sum, scheme) => sum + scheme.viewsCount, 0)
-  const totalEligiblePopulation = schemes.reduce((sum, scheme) => sum + scheme.eligiblePopulation, 0)
-  const activeSchemes = schemes.filter(scheme => scheme.isActive).length
+  const toggleSchemeStatus = async (schemeId: string) => {
+    try {
+      const response = await fetch('/api/ngo/schemes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: schemeId })
+      })
+      
+      if (!response.ok) throw new Error('Failed to toggle scheme')
+      
+      const result = await response.json()
+      setSchemes(schemes.map(scheme => 
+        scheme.id === schemeId ? result.data : scheme
+      ))
+    } catch (err) {
+      alert('Failed to update scheme status. Please try again.')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-green-600 animate-spin" />
+          <p className="text-slate-600">Loading schemes...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="border-red-200 max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-red-700 mb-2">Error Loading Data</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={fetchSchemes} className="bg-red-600 hover:bg-red-700">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-6">
@@ -158,7 +191,11 @@ export default function SchemeMgmtPage() {
         </div>
 
         {/* Add New Scheme Button */}
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={fetchSchemes}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-green-600 hover:bg-green-700 text-white">
               <Plus className="w-4 h-4 mr-2" />
@@ -235,16 +272,18 @@ export default function SchemeMgmtPage() {
               </div>
               
               <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddScheme} className="bg-green-600 hover:bg-green-700">
-                  Add Scheme
+                <Button onClick={handleAddScheme} className="bg-green-600 hover:bg-green-700" disabled={saving}>
+                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  {saving ? 'Adding...' : 'Add Scheme'}
                 </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -256,7 +295,7 @@ export default function SchemeMgmtPage() {
                 <FileText className="w-6 h-6 text-green-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold text-slate-900">{schemes.length}</div>
+                <div className="text-2xl font-bold text-slate-900">{summary?.totalSchemes || schemes.length}</div>
                 <div className="text-sm text-slate-600">Total Schemes</div>
               </div>
             </div>
@@ -270,7 +309,7 @@ export default function SchemeMgmtPage() {
                 <Eye className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold text-slate-900">{totalViews.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-slate-900">{(summary?.totalViews || 0).toLocaleString()}</div>
                 <div className="text-sm text-slate-600">Total Views</div>
               </div>
             </div>
@@ -284,7 +323,7 @@ export default function SchemeMgmtPage() {
                 <Users className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold text-slate-900">{totalEligiblePopulation.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-slate-900">{(summary?.totalEligible || 0).toLocaleString()}</div>
                 <div className="text-sm text-slate-600">Eligible Population</div>
               </div>
             </div>
@@ -298,7 +337,7 @@ export default function SchemeMgmtPage() {
                 <BarChart3 className="w-6 h-6 text-orange-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold text-slate-900">{activeSchemes}</div>
+                <div className="text-2xl font-bold text-slate-900">{summary?.activeSchemes || schemes.filter(s => s.isActive).length}</div>
                 <div className="text-sm text-slate-600">Active Schemes</div>
               </div>
             </div>

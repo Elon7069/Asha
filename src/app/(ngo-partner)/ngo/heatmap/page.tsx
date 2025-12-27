@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,9 @@ import {
   Filter,
   Eye,
   EyeOff,
-  ArrowLeft
+  ArrowLeft,
+  Loader2,
+  RefreshCw
 } from 'lucide-react'
 
 interface Village {
@@ -31,68 +33,36 @@ interface Village {
   coordinates: { x: number; y: number }
 }
 
-// Mock village data for heatmap
-const mockVillages: Village[] = [
-  {
-    id: 'v1',
-    name: 'Rampur',
-    totalWomen: 156,
-    highRiskPercentage: 23,
-    alertsRaised: 8,
-    avgResponseTime: '45 min',
-    riskLevel: 'high',
-    coordinates: { x: 20, y: 30 }
-  },
-  {
-    id: 'v2',
-    name: 'Sitapur',
-    totalWomen: 89,
-    highRiskPercentage: 45,
-    alertsRaised: 15,
-    avgResponseTime: '1.2 hrs',
-    riskLevel: 'critical',
-    coordinates: { x: 45, y: 25 }
-  },
-  {
-    id: 'v3',
-    name: 'Gokulpur',
-    totalWomen: 234,
-    highRiskPercentage: 12,
-    alertsRaised: 3,
-    avgResponseTime: '25 min',
-    riskLevel: 'low',
-    coordinates: { x: 65, y: 40 }
-  },
-  {
-    id: 'v4',
-    name: 'Shanti Nagar',
-    totalWomen: 178,
-    highRiskPercentage: 34,
-    alertsRaised: 11,
-    avgResponseTime: '55 min',
-    riskLevel: 'medium',
-    coordinates: { x: 30, y: 65 }
-  },
-  {
-    id: 'v5',
-    name: 'Naya Gaon',
-    totalWomen: 67,
-    highRiskPercentage: 8,
-    alertsRaised: 1,
-    avgResponseTime: '20 min',
-    riskLevel: 'low',
-    coordinates: { x: 75, y: 60 }
-  }
-]
-
 export default function NGOHeatmapPage() {
   const router = useRouter()
   const [selectedVillage, setSelectedVillage] = useState<Village | null>(null)
+  const [villages, setVillages] = useState<Village[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [layers, setLayers] = useState({
     pregnancyRisk: true,
     emergencyAlerts: true,
     vaccinations: false
   })
+
+  const fetchHeatmapData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/ngo/heatmap')
+      if (!response.ok) throw new Error('Failed to fetch heatmap data')
+      const result = await response.json()
+      setVillages(result.data.villages)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchHeatmapData()
+  }, [])
 
   const getRiskColor = (riskLevel: string) => {
     switch (riskLevel) {
@@ -118,6 +88,35 @@ export default function NGOHeatmapPage() {
     setSelectedVillage(village)
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+          <p className="text-slate-600">Loading heatmap data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="border-red-200 max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-red-700 mb-2">Error Loading Data</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={fetchHeatmapData} className="bg-red-600 hover:bg-red-700">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-6">
       
@@ -136,8 +135,12 @@ export default function NGOHeatmapPage() {
           </div>
         </div>
 
-        {/* Layer Controls */}
-        <Card className="border-slate-200">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={fetchHeatmapData}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+          {/* Layer Controls */}
+          <Card className="border-slate-200">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm text-slate-700 flex items-center gap-2">
               <Filter className="w-4 h-4" />
@@ -171,6 +174,7 @@ export default function NGOHeatmapPage() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -195,7 +199,7 @@ export default function NGOHeatmapPage() {
               </div>
 
               {/* Village Markers */}
-              {mockVillages.map((village) => (
+              {villages.map((village) => (
                 <button
                   key={village.id}
                   onClick={() => handleVillageClick(village)}

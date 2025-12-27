@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,7 +15,9 @@ import {
   Activity,
   Brain,
   BarChart3,
-  ArrowLeft
+  ArrowLeft,
+  Loader2,
+  RefreshCw
 } from 'lucide-react'
 
 interface RedFlagData {
@@ -26,72 +28,53 @@ interface RedFlagData {
   description: string
 }
 
-// Mock red flag trends data
-const redFlagData: RedFlagData[] = [
-  {
-    type: 'Severe Bleeding',
-    count: 23,
-    trend: 'down',
-    percentage: -12,
-    description: 'Post-delivery complications'
-  },
-  {
-    type: 'High Blood Pressure',
-    count: 45,
-    trend: 'up',
-    percentage: +18,
-    description: 'Pregnancy-induced hypertension'
-  },
-  {
-    type: 'Severe Anemia',
-    count: 67,
-    trend: 'up',
-    percentage: +25,
-    description: 'Low hemoglobin levels'
-  },
-  {
-    type: 'Repeated Danger Symptoms',
-    count: 12,
-    trend: 'stable',
-    percentage: 0,
-    description: 'Multiple concerning symptoms'
-  }
-]
+interface MonthlyTrend {
+  month: string
+  bleeding: number
+  highBP: number
+  anemia: number
+  repeated: number
+}
 
-const monthlyTrends = [
-  { month: 'Sep', bleeding: 28, highBP: 38, anemia: 54, repeated: 15 },
-  { month: 'Oct', bleeding: 25, highBP: 41, anemia: 59, repeated: 13 },
-  { month: 'Nov', bleeding: 21, highBP: 43, anemia: 62, repeated: 11 },
-  { month: 'Dec', bleeding: 23, highBP: 45, anemia: 67, repeated: 12 },
-]
+interface BlockAnalysis {
+  block: string
+  totalCases: number
+  primaryConcern: string
+  trend: string
+  aiInsight: string
+}
 
-const blockAnalysis = [
-  {
-    block: 'Block A',
-    totalCases: 89,
-    primaryConcern: 'Severe Anemia',
-    trend: 'increasing',
-    aiInsight: 'Low IFA adherence reported by ASHAs. Consider nutrition camps and iron supplementation drive.'
-  },
-  {
-    block: 'Block B', 
-    totalCases: 56,
-    primaryConcern: 'High BP',
-    trend: 'stable',
-    aiInsight: 'Consistent monitoring by ASHAs showing good control. Continue current protocols.'
-  },
-  {
-    block: 'Block C',
-    totalCases: 34,
-    primaryConcern: 'Bleeding',
-    trend: 'decreasing',
-    aiInsight: 'Improved emergency response times. Training interventions showing positive impact.'
-  }
-]
+interface AnalyticsData {
+  redFlags: RedFlagData[]
+  monthlyTrends: MonthlyTrend[]
+  blockAnalysis: BlockAnalysis[]
+}
 
 export default function RedFlagAnalyticsPage() {
   const router = useRouter()
   const [timeRange, setTimeRange] = useState('last-3-months')
+  const [data, setData] = useState<AnalyticsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchAnalytics = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/ngo/analytics?timeRange=${timeRange}`)
+      if (!response.ok) throw new Error('Failed to fetch analytics')
+      const result = await response.json()
+      setData(result.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAnalytics()
+  }, [timeRange])
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {
@@ -110,11 +93,45 @@ export default function RedFlagAnalyticsPage() {
   }
 
   const getMaxValue = () => {
-    const allValues = monthlyTrends.flatMap(month => [
+    if (!data) return 100
+    const allValues = data.monthlyTrends.flatMap(month => [
       month.bleeding, month.highBP, month.anemia, month.repeated
     ])
     return Math.max(...allValues) + 10
   }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-red-600 animate-spin" />
+          <p className="text-slate-600">Loading analytics...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="border-red-200 max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-red-700 mb-2">Error Loading Data</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={fetchAnalytics} className="bg-red-600 hover:bg-red-700">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!data) return null
+
+  const { redFlags, monthlyTrends, blockAnalysis } = data
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-6">
@@ -135,21 +152,26 @@ export default function RedFlagAnalyticsPage() {
         </div>
 
         {/* Time Range Selector */}
-        <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="last-3-months">Last 3 Months</SelectItem>
-            <SelectItem value="last-6-months">Last 6 Months</SelectItem>
-            <SelectItem value="last-year">Last Year</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={fetchAnalytics}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="last-3-months">Last 3 Months</SelectItem>
+              <SelectItem value="last-6-months">Last 6 Months</SelectItem>
+              <SelectItem value="last-year">Last Year</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Red Flag Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {redFlagData.map((item) => (
+        {redFlags.map((item) => (
           <Card key={item.type} className="border-slate-200">
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-3">
