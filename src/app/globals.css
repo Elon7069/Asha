@@ -1,0 +1,389 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, sans-serif;
+  --font-hindi: 'Noto Sans Devanagari', sans-serif;
+  --font-mono: var(--font-geist-mono);
+  
+  /* ASHA Pink Healthcare Theme Colors */
+  --color-asha-pink-50: #FFF5F8;
+  --color-asha-pink-100: #FFE5F0;
+  --color-asha-pink-200: #FFCCE3;
+  --color-asha-pink-300: #FFB3D6;
+  --color-asha-pink-400: #FF8AC2;
+  --color-asha-pink-500: #FF69B4;
+  --color-asha-pink-600: #E84D9B;
+  --color-asha-pink-700: #C73582;
+  --color-asha-pink-800: #A62069;
+  --color-asha-pink-900: #850D50;
+  
+  /* Medical Green */
+  --color-asha-green-500: #10B981;
+  --color-asha-green-600: #059669;
+  
+  /* Warning Amber */
+  --color-asha-amber-500: #F59E0B;
+  --color-asha-amber-600: #D97706;
+  
+  /* Emergency Red */
+  --color-asha-red-500: #EF4444;
+  --color-asha-red-600: #DC2626;
+  
+  /* Mental Health Purple */
+  --color-asha-purple-400: #A78BFA;
+  --color-asha-purple-500: #8B5CF6;
+  
+  /* Nutrition Orange */
+  --color-asha-orange-400: #FB923C;
+  --color-asha-orange-500: #F97316;
+  
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+:root {
+  --radius: 1rem;
+  --background: #FFF5F8;
+  --foreground: #1F2937;
+  --card: #FFFFFF;
+  --card-foreground: #1F2937;
+  --popover: #FFFFFF;
+  --popover-foreground: #1F2937;
+  --primary: #FF69B4;
+  --primary-foreground: #FFFFFF;
+  --secondary: #FFE5F0;
+  --secondary-foreground: #1F2937;
+  --muted: #FFF5F8;
+  --muted-foreground: #6B7280;
+  --accent: #FFE5F0;
+  --accent-foreground: #1F2937;
+  --destructive: #EF4444;
+  --border: #FFCCE3;
+  --input: #FFE5F0;
+  --ring: #FF69B4;
+  --chart-1: #FF69B4;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #8B5CF6;
+  --chart-5: #F97316;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1F2937;
+  --sidebar-primary: #FF69B4;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FFE5F0;
+  --sidebar-accent-foreground: #1F2937;
+  --sidebar-border: #FFCCE3;
+  --sidebar-ring: #FF69B4;
+}
+
+/* Load Hindi font */
+@font-face {
+  font-family: 'Noto Sans Devanagari';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('https://fonts.gstatic.com/s/notosansdevanagari/v25/TuGoUUFzXI5FBtUq5a8bnKIOdTwQNO_W3lJJF.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Sans Devanagari';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('https://fonts.gstatic.com/s/notosansdevanagari/v25/TuGpUUFzXI5FBtUq5a8bnKIOdTwQNO_W3lJJF.woff2') format('woff2');
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  
+  html {
+    font-family: 'Inter', 'Noto Sans Devanagari', system-ui, sans-serif;
+    font-size: 18px; /* Minimum 18px for low literacy users */
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-size: 18px; /* Minimum body text size */
+    line-height: 1.6; /* High contrast readability */
+    color: #1F2937; /* Dark gray for high contrast */
+  }
+  
+  /* Headings - Large and readable */
+  h1 {
+    @apply text-4xl font-bold mb-4;
+    font-size: 2.5rem; /* 40px */
+    line-height: 1.2;
+  }
+  
+  h2 {
+    @apply text-3xl font-bold mb-3;
+    font-size: 2rem; /* 32px */
+    line-height: 1.3;
+  }
+  
+  h3 {
+    @apply text-2xl font-semibold mb-2;
+    font-size: 1.5rem; /* 24px */
+    line-height: 1.4;
+  }
+  
+  /* Large touch targets for rural users - minimum 56px */
+  button, 
+  [role="button"],
+  a:not([class*="text-"]):not([class*="underline"]),
+  input[type="button"],
+  input[type="submit"],
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 56px;
+    min-width: 56px;
+  }
+  
+  /* Input fields - large and accessible */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="date"],
+  textarea,
+  select {
+    min-height: 56px;
+    font-size: 18px;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Icons - minimum 32px for touch */
+  svg[class*="lucide"],
+  [class*="icon"] {
+    min-width: 32px;
+    min-height: 32px;
+  }
+  
+  /* Hindi text styling */
+  .font-hindi {
+    font-family: 'Noto Sans Devanagari', sans-serif;
+    font-size: 18px;
+  }
+  
+  /* Larger text for low literacy users */
+  .text-readable {
+    font-size: 1.125rem; /* 18px */
+    line-height: 1.75;
+  }
+  
+  /* High contrast text */
+  p, span, div {
+    color: #1F2937; /* Dark gray - high contrast */
+  }
+  
+  /* High contrast links */
+  a {
+    color: #FF69B4;
+    text-decoration: underline;
+  }
+  
+  a:hover {
+    color: #E84D9B;
+  }
+  
+  /* Disabled state - clear visual feedback */
+  [disabled],
+  .disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+}
+
+@layer components {
+  /* Glassmorphism card */
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-xl border border-white/20 shadow-lg;
+  }
+  
+  /* Pink gradient background */
+  .bg-asha-gradient {
+    background: linear-gradient(135deg, #FFF5F8 0%, #FFE5F0 50%, #FFCCE3 100%);
+  }
+  
+  /* Emergency red gradient */
+  .bg-emergency-gradient {
+    background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 50%, #FCA5A5 100%);
+  }
+  
+  /* Voice button pulse animation */
+  .voice-pulse {
+    animation: voicePulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes voicePulse {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(255, 105, 180, 0.4);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 20px rgba(255, 105, 180, 0);
+    }
+  }
+  
+  /* Recording animation */
+  .recording-wave {
+    animation: recordingWave 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes recordingWave {
+    0%, 100% {
+      transform: scaleY(1);
+    }
+    50% {
+      transform: scaleY(1.5);
+    }
+  }
+  
+  /* Emergency button pulse */
+  .emergency-pulse {
+    animation: emergencyPulse 1s ease-in-out infinite;
+  }
+  
+  @keyframes emergencyPulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 15px rgba(239, 68, 68, 0);
+    }
+  }
+  
+  /* Large touch button - minimum 56px for rural users */
+  .touch-button {
+    @apply min-h-[56px] min-w-[56px] rounded-2xl font-medium transition-all duration-200 active:scale-95;
+    font-size: 18px;
+    padding: 0.875rem 1.5rem;
+  }
+  
+  /* Extra large buttons for primary actions */
+  .touch-button-xl {
+    @apply min-h-[64px] min-w-[64px] rounded-3xl font-semibold text-lg;
+    padding: 1rem 2rem;
+  }
+  
+  /* Cards with larger padding for readability */
+  .card {
+    padding: 1.5rem;
+    border-radius: 1rem;
+  }
+  
+  /* High contrast focus states */
+  *:focus-visible {
+    outline: 3px solid #FF69B4;
+    outline-offset: 2px;
+  }
+  
+  /* Card with hover effect */
+  .hover-card {
+    @apply transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+  }
+  
+  /* Status badge styles */
+  .badge-success {
+    @apply bg-emerald-100 text-emerald-700 border-emerald-200;
+  }
+  
+  .badge-warning {
+    @apply bg-amber-100 text-amber-700 border-amber-200;
+  }
+  
+  .badge-danger {
+    @apply bg-red-100 text-red-700 border-red-200;
+  }
+  
+  .badge-info {
+    @apply bg-blue-100 text-blue-700 border-blue-200;
+  }
+  
+  /* Period tracker day styles */
+  .period-day {
+    @apply bg-pink-400 text-white;
+  }
+  
+  .fertile-day {
+    @apply bg-emerald-400 text-white;
+  }
+  
+  .predicted-day {
+    @apply bg-pink-200 text-pink-700;
+  }
+  
+  /* Safe area padding for mobile */
+  .safe-area-inset {
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Text balance for better readability */
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  /* Gradient text */
+  .text-gradient-pink {
+    @apply bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent;
+  }
+}
