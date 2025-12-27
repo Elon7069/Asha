@@ -9,13 +9,15 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
-  Info
+  Info,
+  ArrowLeft
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { 
   format, 
@@ -42,6 +44,7 @@ interface CycleData {
 }
 
 export default function PeriodTrackerPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [currentMonth, setCurrentMonth] = React.useState(new Date())
   const [cycleData, setCycleData] = React.useState<CycleData>({
@@ -190,9 +193,14 @@ export default function PeriodTrackerPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Period Tracker</h1>
-          <p className="text-pink-600 font-hindi">पीरियड ट्रैकर</p>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Period Tracker</h1>
+            <p className="text-pink-600 font-hindi">पीरियड ट्रैकर</p>
+          </div>
         </div>
         <Link href="/period-tracker/log">
           <Button className="bg-pink-500 hover:bg-pink-600">

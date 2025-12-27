@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type')
   const code = searchParams.get('code')
   const role = searchParams.get('role')
+  const error = searchParams.get('error')
   const next = searchParams.get('next') ?? '/'
 
   const redirectTo = request.nextUrl.clone()
@@ -66,32 +67,51 @@ export async function GET(request: NextRequest) {
   redirectTo.searchParams.delete('token_hash')
   redirectTo.searchParams.delete('type')
   redirectTo.searchParams.delete('code')
+  redirectTo.searchParams.delete('error')
+  redirectTo.searchParams.delete('error_code')
+  redirectTo.searchParams.delete('error_description')
+
+  // Handle OAuth errors
+  if (error) {
+    console.log('OAuth error received:', error)
+    // If there's a role, redirect to register with role parameter
+    if (role) {
+      redirectTo.pathname = '/register'
+      redirectTo.searchParams.set('role', role)
+      return NextResponse.redirect(redirectTo)
+    }
+    // Otherwise redirect to login
+    redirectTo.pathname = '/login'
+    return NextResponse.redirect(redirectTo)
+  }
 
   // Handle OAuth callback
   if (code) {
     const supabase = await createServerSupabaseClient()
     
-    // Exchange code for session
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-    
-    if (!error && data?.user) {
-      // Check if user has a profile
-      const hasProfile = await checkUserProfile(supabase, data.user.id)
+    try {
+      // Exchange code for session
+      const { data, error: authError } = await supabase.auth.exchangeCodeForSession(code)
       
-      if (!hasProfile) {
-        // User doesn't have a profile, redirect to register
-        redirectTo.pathname = '/register'
-        redirectTo.searchParams.set('role', role || 'user')
-        redirectTo.searchParams.set('oauth', 'true')
-      } else if (role) {
-        // User has profile but role was provided (from signup flow)
-        // Redirect to appropriate dashboard based on their actual profile
-        redirectTo.pathname = '/'
+      if (!authError && data?.user) {
+        // Check if user has a profile
+        const hasProfile = await checkUserProfile(supabase, data.user.id)
+        
+        if (!hasProfile) {
+          // User doesn't have a profile, redirect to register
+          redirectTo.pathname = '/register'
+          redirectTo.searchParams.set('role', role || 'user')
+          redirectTo.searchParams.set('oauth', 'true')
+        } else {
+          // User has profile, redirect to home (AuthContext will handle dashboard redirect)
+          redirectTo.pathname = '/'
+        }
+        return NextResponse.redirect(redirectTo)
       } else {
-        // User has profile and is logging in, redirect to home (will be handled by middleware/AuthContext)
-        redirectTo.pathname = '/'
+        console.error('Auth exchange error:', authError)
       }
-      return NextResponse.redirect(redirectTo)
+    } catch (err) {
+      console.error('OAuth callback error:', err)
     }
   }
 
@@ -99,12 +119,12 @@ export async function GET(request: NextRequest) {
   if (token_hash && type) {
     const supabase = await createServerSupabaseClient()
     
-    const { error } = await supabase.auth.verifyOtp({
+    const { error: otpError } = await supabase.auth.verifyOtp({
       type: type as any,
       token_hash,
     })
     
-    if (!error) {
+    if (!otpError) {
       redirectTo.searchParams.delete('next')
       return NextResponse.redirect(redirectTo)
     }

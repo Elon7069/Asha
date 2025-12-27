@@ -657,7 +657,7 @@ export default function RegisterPage() {
         }
         
         console.log('NGO partner profile saved successfully')
-        router.push('/ngo-dashboard')
+        router.push('/ngo/dashboard')
       }
     } catch (error: any) {
       console.error('Registration error:', error)
@@ -678,7 +678,21 @@ export default function RegisterPage() {
   const RoleIcon = getRoleIcon()
 
   return (
-    <div className={`min-h-screen bg-gradient-to-b ${theme.gradient} flex items-center justify-center p-4`}>
+    <div className={`min-h-screen bg-gradient-to-b ${theme.gradient} flex items-center justify-center p-4 relative`}>
+      {/* Back Button - Only show on first step */}
+      {currentStep === 0 && (
+        <div className="absolute top-4 left-4 z-10">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push('/')}
+            className="bg-white/80 backdrop-blur-sm hover:bg-white"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+        </div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

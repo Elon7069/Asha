@@ -4,12 +4,40 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
+    // Check for Mistral API key
+    if (!process.env.MISTRAL_API_KEY) {
+      console.error('MISTRAL_API_KEY is not configured')
+      return NextResponse.json(
+        { 
+          error: 'AI service is not configured. Please contact support.',
+          details: process.env.NODE_ENV === 'development' ? 'MISTRAL_API_KEY environment variable is missing' : undefined
+        },
+        { status: 500 }
+      )
+    }
+
     const body = await request.json()
     const { message, conversationHistory = [], language = 'hi', sessionId } = body
 
+    // Validate required fields
     if (!message || typeof message !== 'string') {
       return NextResponse.json(
-        { error: 'Message is required' },
+        { error: 'Message is required and must be a string' },
+        { status: 400 }
+      )
+    }
+
+    if (message.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Message cannot be empty' },
+        { status: 400 }
+      )
+    }
+
+    // Validate language
+    if (language && language !== 'hi' && language !== 'en') {
+      return NextResponse.json(
+        { error: 'Language must be either "hi" or "en"' },
         { status: 400 }
       )
     }
@@ -18,7 +46,7 @@ export async function POST(request: NextRequest) {
     const response = await chatWithAshaDidi(
       message,
       conversationHistory as ChatMessage[],
-      language
+      language || 'hi'
     )
 
     // Save to chat history if user is authenticated
@@ -83,9 +111,33 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('Chat API error:', error)
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to process chat message'
+    let statusCode = 500
+    
+    if (error instanceof Error) {
+      errorMessage = error.message
+      
+      // Check for specific error types
+      if (error.message.includes('API key') || error.message.includes('authentication')) {
+        errorMessage = 'AI service authentication failed. Please contact support.'
+        statusCode = 503
+      } else if (error.message.includes('rate limit') || error.message.includes('quota')) {
+        errorMessage = 'Service is temporarily unavailable. Please try again later.'
+        statusCode = 429
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+        statusCode = 503
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to process chat message' },
-      { status: 500 }
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : String(error)) : undefined
+      },
+      { status: statusCode }
     )
   }
 }

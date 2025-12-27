@@ -73,14 +73,6 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
 
       mediaRecorder.start(100) // Collect data every 100ms
 
-      // Start duration timer
-      timerRef.current = setInterval(() => {
-        setState(prev => ({
-          ...prev,
-          duration: prev.duration + 1
-        }))
-      }, 1000)
-
       setState(prev => ({
         ...prev,
         isRecording: true,
@@ -90,6 +82,14 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
         audioBlob: null,
         audioUrl: null,
       }))
+
+      // Start duration timer after state is set
+      timerRef.current = setInterval(() => {
+        setState(prev => ({
+          ...prev,
+          duration: prev.duration + 1
+        }))
+      }, 1000)
     } catch (error) {
       console.error('Error starting recording:', error)
       setState(prev => ({

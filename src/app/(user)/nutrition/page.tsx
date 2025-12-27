@@ -11,13 +11,15 @@ import {
   Droplets,
   Leaf,
   Clock,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
 
 // Local iron-rich foods database
 const ironRichFoods = [
@@ -51,6 +53,7 @@ const dailyTips = [
 ]
 
 export default function NutritionPage() {
+  const router = useRouter()
   const [ifaTaken, setIfaTaken] = React.useState(false)
   const [ifaStreak, setIfaStreak] = React.useState(5) // Mock streak
 
@@ -63,9 +66,14 @@ export default function NutritionPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Nutrition & IFA</h1>
-        <p className="text-pink-600 font-hindi">पोषण और IFA</p>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Nutrition & IFA</h1>
+          <p className="text-pink-600 font-hindi">पोषण और IFA</p>
+        </div>
       </div>
 
       {/* IFA Tracker Card */}

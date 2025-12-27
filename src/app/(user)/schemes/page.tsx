@@ -9,13 +9,15 @@ import {
   Filter,
   ExternalLink,
   Phone,
-  Calendar
+  Calendar,
+  ArrowLeft
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 interface Scheme {
   id: string
@@ -33,6 +35,7 @@ interface Scheme {
 }
 
 export default function SchemesPage() {
+  const router = useRouter()
   const [schemes, setSchemes] = React.useState<Scheme[]>([])
   const [filteredSchemes, setFilteredSchemes] = React.useState<Scheme[]>([])
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -95,12 +98,17 @@ export default function SchemesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Government Schemes</h1>
-        <p className="text-pink-600 font-hindi">सरकारी योजनाएं</p>
-        <p className="text-gray-600 text-sm mt-2">
-          Find schemes you're eligible for
-        </p>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Government Schemes</h1>
+          <p className="text-pink-600 font-hindi">सरकारी योजनाएं</p>
+          <p className="text-gray-600 text-sm mt-2">
+            Find schemes you're eligible for
+          </p>
+        </div>
       </div>
 
       {/* Search and Filter */}

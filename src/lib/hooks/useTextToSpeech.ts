@@ -34,33 +34,59 @@ export function useTextToSpeech(language: string = 'hi-IN'): UseTextToSpeechRetu
   const rateRef = useRef<number>(1.0)
   const pitchRef = useRef<number>(1.0)
 
-  // Load voices
+  // Load voices with priority: Google > Microsoft > Default
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       setState(prev => ({ ...prev, isSupported: true }))
 
+      const selectBestVoice = (voices: SpeechSynthesisVoice[], langCode: string): SpeechSynthesisVoice | null => {
+        const langPrefix = langCode.split('-')[0]
+        
+        // Filter voices for the target language
+        const langVoices = voices.filter(v => 
+          v.lang.startsWith(langPrefix) || v.lang.toLowerCase().includes(langPrefix)
+        )
+        
+        // Priority 1: Google voices (best quality for Indian languages)
+        const googleVoice = langVoices.find(v => 
+          v.name.toLowerCase().includes('google')
+        )
+        if (googleVoice) return googleVoice
+        
+        // Priority 2: Microsoft voices
+        const microsoftVoice = langVoices.find(v => 
+          v.name.toLowerCase().includes('microsoft') || v.name.toLowerCase().includes('azure')
+        )
+        if (microsoftVoice) return microsoftVoice
+        
+        // Priority 3: Female voices (for Asha Didi persona)
+        const femaleVoice = langVoices.find(v => 
+          v.name.toLowerCase().includes('female') || 
+          v.name.toLowerCase().includes('lekha') ||
+          v.name.toLowerCase().includes('aditi') ||
+          v.name.toLowerCase().includes('raveena')
+        )
+        if (femaleVoice) return femaleVoice
+        
+        // Priority 4: Any voice for the language
+        if (langVoices.length > 0) return langVoices[0]
+        
+        // Priority 5: English fallback
+        const englishVoice = voices.find(v => v.lang.startsWith('en'))
+        if (englishVoice) return englishVoice
+        
+        // Priority 6: First available
+        return voices[0] || null
+      }
+
       const loadVoices = () => {
         const availableVoices = window.speechSynthesis.getVoices()
-        
-        // Find Hindi voices first, then fall back to English
-        const hindiVoices = availableVoices.filter(v => 
-          v.lang.startsWith('hi') || v.lang.includes('Hindi')
-        )
-        const englishVoices = availableVoices.filter(v => 
-          v.lang.startsWith('en')
-        )
-        
-        // Prefer female voices for Asha Didi
-        const preferredVoice = hindiVoices.find(v => 
-          v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('lekha')
-        ) || hindiVoices[0] || englishVoices.find(v => 
-          v.name.toLowerCase().includes('female')
-        ) || englishVoices[0] || availableVoices[0]
+        const preferredVoice = selectBestVoice(availableVoices, language)
 
         setState(prev => ({
           ...prev,
           voices: availableVoices,
-          currentVoice: preferredVoice || null,
+          currentVoice: preferredVoice,
         }))
       }
 
@@ -68,7 +94,7 @@ export function useTextToSpeech(language: string = 'hi-IN'): UseTextToSpeechRetu
       loadVoices()
       window.speechSynthesis.onvoiceschanged = loadVoices
     }
-  }, [])
+  }, [language])
 
   // Update voice when language changes
   useEffect(() => {
@@ -83,13 +109,38 @@ export function useTextToSpeech(language: string = 'hi-IN'): UseTextToSpeechRetu
     }
   }, [language, state.voices])
 
+  // Clean text for speech - remove markdown, emojis, and special characters
+  const cleanTextForSpeech = (text: string): string => {
+    return text
+      // Remove markdown bold/italic markers
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/__/g, '')
+      .replace(/_/g, ' ')
+      // Remove markdown headers
+      .replace(/#{1,6}\s*/g, '')
+      // Remove markdown links [text](url) -> text
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      // Remove emojis
+      .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2300}-\u{23FF}]|[\u{2B50}]|[\u{1FA00}-\u{1FAFF}]|[\u{FE00}-\u{FE0F}]|[\u{200D}]/gu, '')
+      // Remove bullet points
+      .replace(/^[\s]*[-•]\s*/gm, '')
+      // Remove extra whitespace
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
   const speak = useCallback((text: string) => {
     if (!state.isSupported || !text) return
 
     // Cancel any ongoing speech
     window.speechSynthesis.cancel()
 
-    const utterance = new SpeechSynthesisUtterance(text)
+    // Clean the text before speaking
+    const cleanedText = cleanTextForSpeech(text)
+    if (!cleanedText) return
+
+    const utterance = new SpeechSynthesisUtterance(cleanedText)
     utterance.rate = rateRef.current
     utterance.pitch = pitchRef.current
     

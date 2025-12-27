@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { 
   Mic, 
@@ -14,7 +15,8 @@ import {
   Droplets,
   Baby,
   Pill,
-  Smile
+  Smile,
+  ArrowLeft
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -74,6 +76,7 @@ const healthTips = [
 ]
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [greeting, setGreeting] = React.useState('')
   const [greetingHindi, setGreetingHindi] = React.useState('')
 
@@ -93,6 +96,18 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Back Button */}
+      <div className="flex items-center justify-start pt-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push('/profile-setup')}
+          className="text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+      </div>
+
       {/* Greeting Section */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -169,11 +184,6 @@ export default function DashboardPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Your Health</h2>
-              <Link href="/profile">
-                <Button variant="ghost" size="sm" className="text-pink-600">
-                  View All
-                </Button>
-              </Link>
             </div>
             
             <div className="grid grid-cols-3 gap-4 text-center">
@@ -247,22 +257,31 @@ export default function DashboardPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
       >
-        <Link href="/red-zone/activate">
-          <Card className="bg-red-50 border-red-200 hover:bg-red-100 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-red-700">Emergency? Press here</h3>
-                  <p className="text-sm text-red-600 font-hindi">इमरजेंसी? यहां दबाएं</p>
-                </div>
-                <Badge variant="destructive">SOS</Badge>
+        <Card 
+          className="bg-red-50 border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
+          onClick={() => router.push('/red-zone/activate')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              router.push('/red-zone/activate')
+            }
+          }}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-white" />
               </div>
-            </CardContent>
-          </Card>
-        </Link>
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-700">Emergency? Press here</h3>
+                <p className="text-sm text-red-600 font-hindi">इमरजेंसी? यहां दबाएं</p>
+              </div>
+              <Badge variant="destructive">SOS</Badge>
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
     </div>
   )

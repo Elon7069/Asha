@@ -8,16 +8,22 @@ import {
   Volume2, 
   VolumeX,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  ChevronLeft
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { VoiceButton, VoiceWaveform, RecordingTimer } from '@/components/ui/voice-button'
 import { VoiceOrb2D } from '@/components/3d/VoiceOrb'
 import { LanguageToggle } from '@/components/shared/LanguageSelector'
 import { useSpeechRecognition } from '@/lib/hooks/useSpeechRecognition'
+import { useVoiceRecorder } from '@/lib/hooks/useVoiceRecorder'
+import { useWhisperSTT } from '@/lib/hooks/useWhisperSTT'
 import { useTextToSpeech } from '@/lib/hooks/useTextToSpeech'
 import { cn } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface Message {
   id: string
@@ -28,41 +34,96 @@ interface Message {
 }
 
 export default function AshaDidiPage() {
+  const router = useRouter()
   const [messages, setMessages] = React.useState<Message[]>([])
   const [isProcessing, setIsProcessing] = React.useState(false)
   const [language, setLanguage] = React.useState<'hi' | 'en'>('hi')
   const [sessionId] = React.useState(() => crypto.randomUUID())
   const [autoSpeak, setAutoSpeak] = React.useState(true)
+  const [inputText, setInputText] = React.useState('')
+  const [inputMode, setInputMode] = React.useState<'voice' | 'text'>('voice')
+  const [sttMode, setSttMode] = React.useState<'web-speech' | 'whisper'>('web-speech')
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
 
-  // Speech recognition hook
+  // Language code mapping for speech recognition
   const speechLang = language === 'hi' ? 'hi-IN' : 'en-US'
+
+  // PRIMARY: Web Speech API (browser-based, real-time)
   const { 
     state: speechState, 
     startListening, 
-    stopListening, 
-    resetTranscript 
+    stopListening,
+    resetTranscript: resetSpeechTranscript
   } = useSpeechRecognition(speechLang)
 
-  // Text-to-speech hook
+  // FALLBACK: Voice recording + Whisper (for unsupported browsers)
+  const { 
+    state: recordingState, 
+    startRecording, 
+    stopRecording 
+  } = useVoiceRecorder()
+
+  const { 
+    isProcessing: isTranscribing,
+    transcript: whisperTranscript,
+    error: whisperError,
+    processAudio,
+    resetTranscript: resetWhisperTranscript
+  } = useWhisperSTT()
+
+  // Text-to-speech (browser Web Speech API)
   const { 
     state: ttsState, 
     speak, 
     stop: stopSpeaking 
   } = useTextToSpeech(speechLang)
 
+  // Determine which STT to use based on browser support
+  React.useEffect(() => {
+    if (!speechState.isSupported) {
+      console.log('Web Speech API not supported, falling back to Whisper')
+      setSttMode('whisper')
+    } else {
+      console.log('Using Web Speech API for real-time transcription')
+      setSttMode('web-speech')
+    }
+  }, [speechState.isSupported])
+
+  // Track if we're currently in voice input mode
+  const isListening = sttMode === 'web-speech' ? speechState.isListening : recordingState.isRecording
+  const currentTranscript = sttMode === 'web-speech' 
+    ? (speechState.transcript || speechState.interimTranscript)
+    : whisperTranscript
+
   // Scroll to bottom when new messages arrive
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Handle speech recognition result
+  // Handle Web Speech API transcript (real-time, auto-submit when done speaking)
   React.useEffect(() => {
-    if (speechState.transcript && !speechState.isListening) {
-      handleSendMessage(speechState.transcript)
-      resetTranscript()
+    if (sttMode === 'web-speech' && speechState.transcript && !speechState.isListening) {
+      const finalText = speechState.transcript.trim()
+      if (finalText) {
+        console.log('Web Speech transcription received:', finalText)
+        handleSendMessage(finalText)
+        resetSpeechTranscript()
+      }
     }
-  }, [speechState.isListening, speechState.transcript])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speechState.transcript, speechState.isListening, sttMode])
+
+  // Handle Whisper transcription result (fallback mode)
+  React.useEffect(() => {
+    if (sttMode === 'whisper' && whisperTranscript && !isTranscribing && whisperTranscript.trim()) {
+      console.log('Whisper transcription received:', whisperTranscript)
+      // Put in input field for user review before sending
+      setInputText(whisperTranscript)
+      resetWhisperTranscript()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whisperTranscript, isTranscribing, sttMode])
 
   // Initial greeting
   React.useEffect(() => {
@@ -78,8 +139,13 @@ export default function AshaDidiPage() {
     }])
 
     if (autoSpeak) {
-      speak(greeting)
+      // Small delay to ensure TTS voices are loaded
+      setTimeout(() => {
+        console.log('Speaking greeting:', greeting)
+        speak(greeting)
+      }, 500)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language])
 
   const handleSendMessage = async (text: string) => {
@@ -92,6 +158,13 @@ export default function AshaDidiPage() {
       content: text,
       timestamp: new Date(),
     }
+    
+    // Get conversation history before adding the new message
+    const conversationHistory = messages.slice(-10).map(m => ({
+      role: m.role,
+      content: m.content,
+    }))
+    
     setMessages(prev => [...prev, userMessage])
     setIsProcessing(true)
 
@@ -101,19 +174,41 @@ export default function AshaDidiPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          conversationHistory: messages.slice(-10).map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
+          conversationHistory,
           language,
           sessionId,
         }),
       })
 
+      // Check response status before parsing JSON
+      if (!response.ok) {
+        let errorMessage = `HTTP error! status: ${response.status}`
+        try {
+          const contentType = response.headers.get('content-type')
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json()
+            errorMessage = errorData.error || errorData.message || errorMessage
+          } else {
+            const text = await response.text()
+            if (text) {
+              errorMessage = text.substring(0, 200)
+            }
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError)
+        }
+        throw new Error(errorMessage)
+      }
+
       const data = await response.json()
 
       if (data.error) {
         throw new Error(data.error)
+      }
+
+      // Validate response has required fields
+      if (!data.message || typeof data.message !== 'string') {
+        throw new Error('Invalid response from server')
       }
 
       // Add assistant message
@@ -128,7 +223,11 @@ export default function AshaDidiPage() {
 
       // Speak the response
       if (autoSpeak) {
-        speak(data.message)
+        // Small delay to ensure TTS is ready
+        setTimeout(() => {
+          console.log('Speaking response:', data.message)
+          speak(data.message)
+        }, 100)
       }
 
     } catch (error) {
@@ -148,13 +247,56 @@ export default function AshaDidiPage() {
     }
   }
 
-  const handleVoicePress = () => {
-    if (speechState.isListening) {
-      stopListening()
-    } else {
+  const handleVoicePress = async () => {
+    try {
+      // Stop any ongoing speech
       stopSpeaking()
-      startListening()
+
+      if (sttMode === 'web-speech') {
+        // PRIMARY: Web Speech API (real-time transcription)
+        if (speechState.isListening) {
+          console.log('Stopping Web Speech recognition...')
+          stopListening()
+        } else {
+          console.log('Starting Web Speech recognition...')
+          resetSpeechTranscript()
+          setInputMode('voice')
+          startListening()
+        }
+      } else {
+        // FALLBACK: Whisper (record then transcribe)
+        if (recordingState.isRecording) {
+          console.log('Stopping recording for Whisper...')
+          const audioBlob = await stopRecording()
+          if (audioBlob && audioBlob.size > 0) {
+            console.log('Audio recorded, processing with Whisper...', { size: audioBlob.size, type: audioBlob.type })
+            await processAudio(audioBlob, speechLang)
+          } else {
+            console.warn('No audio data recorded')
+          }
+        } else {
+          console.log('Starting recording for Whisper...')
+          resetWhisperTranscript()
+          setInputMode('voice')
+          await startRecording()
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleVoicePress:', error)
     }
+  }
+
+  const handleTextSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (inputText.trim() && !isProcessing) {
+      setInputMode('text')
+      handleSendMessage(inputText.trim())
+      setInputText('')
+    }
+  }
+
+  const handleInputFocus = () => {
+    setInputMode('text')
   }
 
   const clearChat = () => {
@@ -171,18 +313,23 @@ export default function AshaDidiPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+    <div className="flex flex-col h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)]">
+      {/* Header - Compact */}
+      <div className="flex items-center justify-between py-2 px-1 shrink-0">
         <div className="flex items-center gap-3">
+          <Link href="/user-dashboard">
+            <Button variant="ghost" size="icon" className="mr-2">
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+          </Link>
           <VoiceOrb2D 
             size="sm" 
-            isListening={speechState.isListening}
+            isListening={isListening}
             isSpeaking={ttsState.isSpeaking}
           />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Asha Didi</h1>
-            <p className="text-sm text-pink-600 font-hindi">आशा दीदी</p>
+            <h1 className="text-lg font-bold text-gray-900 leading-tight">Asha Didi</h1>
+            <p className="text-xs text-pink-600 font-hindi">आशा दीदी</p>
           </div>
         </div>
         
@@ -206,13 +353,13 @@ export default function AshaDidiPage() {
         </div>
       </div>
 
-      {/* Language Toggle */}
-      <div className="flex justify-center mb-4">
+      {/* Language Toggle - Compact */}
+      <div className="flex justify-center py-1 shrink-0">
         <LanguageToggle value={language} onChange={setLanguage} />
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4 scrollbar-hide">
+      {/* Messages Area - Expanded */}
+      <div className="flex-1 overflow-y-auto space-y-3 py-2 px-1 min-h-0">
         <AnimatePresence initial={false}>
           {messages.map((message) => (
             <motion.div
@@ -226,14 +373,14 @@ export default function AshaDidiPage() {
               )}
             >
               <Card className={cn(
-                'max-w-[85%]',
+                'max-w-[90%] shadow-sm',
                 message.role === 'user' 
                   ? 'bg-pink-500 text-white border-0' 
                   : message.isEmergency
                     ? 'bg-red-50 border-red-200'
                     : 'bg-white border-pink-100'
               )}>
-                <CardContent className="p-3">
+                <CardContent className="px-3 py-2">
                   {message.isEmergency && (
                     <div className="flex items-center gap-2 text-red-600 mb-2">
                       <AlertTriangle className="w-4 h-4" />
@@ -241,13 +388,13 @@ export default function AshaDidiPage() {
                     </div>
                   )}
                   <p className={cn(
-                    'text-base leading-relaxed',
+                    'text-sm leading-relaxed',
                     message.role === 'assistant' && 'font-hindi'
                   )}>
                     {message.content}
                   </p>
                   <p className={cn(
-                    'text-xs mt-1',
+                    'text-[10px] mt-0.5 opacity-70',
                     message.role === 'user' ? 'text-pink-200' : 'text-gray-400'
                   )}>
                     {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -285,48 +432,141 @@ export default function AshaDidiPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Voice Input Area */}
-      <div className="bg-white/80 backdrop-blur-lg rounded-3xl p-4 border border-pink-100 shadow-lg">
-        {/* Transcript preview */}
-        {(speechState.transcript || speechState.interimTranscript) && (
+      {/* Input Area - Compact */}
+      <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-3 border border-pink-100 shadow-lg shrink-0 mt-auto">
+        {/* Text Input (always available, shown when typing or in text mode) */}
+        {(inputMode === 'text' || inputText) && (
+          <form onSubmit={handleTextSubmit} className="mb-2">
+            <div className="relative">
+              <Input
+                ref={inputRef}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onFocus={handleInputFocus}
+                placeholder={language === 'hi' ? 'अपना सवाल लिखें...' : 'Type your question...'}
+                className="w-full pr-20 border-pink-200 focus:border-pink-400"
+                disabled={isProcessing || isListening || isTranscribing}
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleVoicePress}
+                  disabled={isProcessing || (!isListening && isTranscribing)}
+                  className={cn(
+                    'p-2 h-8 w-8',
+                    isListening 
+                      ? 'bg-red-100 text-red-600 hover:bg-red-200' 
+                      : 'hover:bg-pink-100 text-pink-600'
+                  )}
+                >
+                  <Mic className={cn('w-4 h-4', isListening && 'animate-pulse')} />
+                </Button>
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!inputText.trim() || isProcessing}
+                  className="p-2 h-8 w-8 hover:bg-pink-100 text-pink-600 disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* Transcript preview (voice mode) */}
+        {inputMode === 'voice' && (currentTranscript || isTranscribing || speechState.interimTranscript) && (
           <div className="mb-4 p-3 bg-pink-50 rounded-xl">
-            <p className="text-gray-700">
-              {speechState.transcript}
-              <span className="text-gray-400">{speechState.interimTranscript}</span>
-            </p>
+            {isTranscribing ? (
+              <p className="text-gray-500 italic">
+                {language === 'hi' ? 'ट्रांसक्राइब कर रही हूं...' : 'Transcribing...'}
+              </p>
+            ) : speechState.interimTranscript ? (
+              <p className="text-gray-500 italic">{speechState.interimTranscript}</p>
+            ) : currentTranscript ? (
+              <p className="text-gray-700">{currentTranscript}</p>
+            ) : null}
+            {(whisperError || speechState.error) && (
+              <p className="text-red-500 text-sm mt-1">{whisperError || speechState.error}</p>
+            )}
           </div>
         )}
 
-        {/* Recording indicator */}
-        {speechState.isListening && (
-          <div className="flex items-center justify-center gap-4 mb-4">
-            <VoiceWaveform isActive={speechState.isListening} />
-            <span className="text-pink-600 font-medium">
-              {language === 'hi' ? 'सुन रही हूं...' : 'Listening...'}
+        {/* Recording/Listening indicator */}
+        {isListening && (
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <VoiceWaveform isActive={isListening} />
+            <span className="text-pink-600 font-medium text-sm">
+              {sttMode === 'web-speech' 
+                ? (language === 'hi' ? 'सुन रही हूं...' : 'Listening...')
+                : (language === 'hi' ? 'रिकॉर्डिंग...' : 'Recording...')
+              }
             </span>
+            {sttMode === 'whisper' && recordingState.duration > 0 && (
+              <span className="text-sm text-gray-500">
+                {Math.floor(recordingState.duration / 60)}:{(recordingState.duration % 60).toString().padStart(2, '0')}
+              </span>
+            )}
           </div>
         )}
 
-        {/* Voice Button */}
-        <div className="flex justify-center">
-          <VoiceButton
-            isRecording={speechState.isListening}
-            isProcessing={isProcessing}
-            disabled={!speechState.isSupported}
-            onPress={handleVoicePress}
-            onRelease={() => {}}
-            size="xl"
-            label={speechState.isListening ? 'Tap to stop' : 'Tap to speak'}
-            labelHindi={speechState.isListening ? 'रोकने के लिए दबाएं' : 'बोलने के लिए दबाएं'}
-          />
-        </div>
+        {/* Voice Button (primary input method - shown when not typing) */}
+        {(!inputText || inputMode === 'voice') && (
+          <div className="flex flex-col items-center py-1">
+            <VoiceButton
+              isRecording={isListening}
+              isProcessing={isProcessing || isTranscribing}
+              disabled={!isListening && isTranscribing}
+              onPress={handleVoicePress}
+              onRelease={() => {}}
+              size="lg"
+              label={
+                isListening 
+                  ? (sttMode === 'web-speech' ? 'Tap to stop' : 'Tap to stop') 
+                  : isTranscribing 
+                    ? 'Transcribing...' 
+                    : (sttMode === 'web-speech' ? 'Tap to speak' : 'Tap to record')
+              }
+              labelHindi={
+                isListening 
+                  ? 'रोकने के लिए दबाएं' 
+                  : isTranscribing 
+                    ? 'ट्रांसक्राइब कर रही हूं...' 
+                    : (sttMode === 'web-speech' ? 'बोलने के लिए दबाएं' : 'रिकॉर्ड करने के लिए दबाएं')
+              }
+            />
+            {/* Text input toggle hint */}
+            {!inputText && (
+              <button
+                type="button"
+                onClick={() => {
+                  setInputMode('text')
+                  inputRef.current?.focus()
+                }}
+                className="mt-1 text-xs text-pink-600 hover:text-pink-700 underline"
+              >
+                {language === 'hi' ? 'या टाइप करें' : 'or type'}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Hint */}
-        {!speechState.isSupported && (
-          <p className="text-center text-sm text-red-500 mt-3">
-            Voice input not supported in this browser
-          </p>
-        )}
+        <div className="text-center text-[10px] text-gray-400 mt-2">
+          {recordingState.error || speechState.error ? (
+            <p className="text-red-500">{recordingState.error || speechState.error}</p>
+          ) : (
+            <p>
+              {language === 'hi' ? '🎤 बोलें या 💬 टाइप करें' : '🎤 Speak or 💬 type'}
+              {sttMode === 'whisper' && (
+                <span className="ml-2 text-pink-400">(Whisper mode)</span>
+              )}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )

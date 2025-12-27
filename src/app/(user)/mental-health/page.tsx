@@ -9,11 +9,13 @@ import {
   Meh,
   Volume2,
   Mic,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { useVoiceRecorder } from '@/lib/hooks/useVoiceRecorder'
 
@@ -30,6 +32,7 @@ const moodOptions: { value: MoodType; emoji: string; label: string; labelHindi: 
 ]
 
 export default function MentalHealthPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [selectedMood, setSelectedMood] = React.useState<MoodType | null>(null)
   const [stressLevel, setStressLevel] = React.useState(5)
@@ -81,8 +84,8 @@ export default function MentalHealthPage() {
             feeling_overwhelmed: feelingOverwhelmed,
             feeling_supported: feelingSupported,
             sleep_quality: sleepQuality,
-            voice_transcription: transcript || null,
-            user_response: transcript || null,
+            voice_transcription: null,
+            user_response: null,
             requires_attention: selectedMood === 'very_sad' || selectedMood === 'stressed' || stressLevel >= 8,
             suggested_action: selectedMood === 'very_sad' || stressLevel >= 8
               ? 'Talk to ASHA Didi or listen to calming audio'
@@ -137,12 +140,17 @@ export default function MentalHealthPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">How Are You Feeling?</h1>
-        <p className="text-purple-600 font-hindi">आज आपका मन कैसा है?</p>
-        <p className="text-gray-600 text-sm mt-2">
-          This is a safe space. Your responses are private.
-        </p>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">How Are You Feeling?</h1>
+          <p className="text-purple-600 font-hindi">आज आपका मन कैसा है?</p>
+          <p className="text-gray-600 text-sm mt-2">
+            This is a safe space. Your responses are private.
+          </p>
+        </div>
       </div>
 
       {/* Mood Selector */}

@@ -11,13 +11,15 @@ import {
   Heart,
   Apple,
   Stethoscope,
-  BookOpen
+  BookOpen,
+  ArrowLeft
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { calculatePregnancyWeek, getPregnancyStage, daysUntilDelivery } from '@/lib/utils/pregnancy'
 import { getWeekData } from '@/lib/constants/pregnancy-weeks'
@@ -40,6 +42,7 @@ const quickLinks = [
 ]
 
 export default function PregnancyPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [pregnancyData, setPregnancyData] = React.useState<{
     isPregnant: boolean
@@ -56,6 +59,27 @@ export default function PregnancyPage() {
 
   React.useEffect(() => {
     async function fetchPregnancyData() {
+      // First check localStorage for pregnancy status
+      try {
+        const storedProfile = localStorage.getItem('asha_user_profile')
+        if (storedProfile) {
+          const profileData = JSON.parse(storedProfile)
+          if (profileData.isPregnant === false) {
+            // User has explicitly set pregnancy status to false
+            setPregnancyData({
+              isPregnant: false,
+              currentWeek: null,
+              expectedDeliveryDate: null,
+              trimester: null
+            })
+            setLoading(false)
+            return
+          }
+        }
+      } catch (error) {
+        console.error('Error reading localStorage:', error)
+      }
+
       if (!user) {
         setLoading(false)
         return
@@ -94,9 +118,36 @@ export default function PregnancyPage() {
             expectedDeliveryDate: edd,
             trimester: stage
           })
+        } else {
+          // Check localStorage again if Supabase doesn't have pregnancy data
+          const storedProfile = localStorage.getItem('asha_user_profile')
+          if (storedProfile) {
+            const profileData = JSON.parse(storedProfile)
+            setPregnancyData({
+              isPregnant: profileData.isPregnant === true,
+              currentWeek: null,
+              expectedDeliveryDate: null,
+              trimester: null
+            })
+          }
         }
       } catch (error) {
         console.error('Error fetching pregnancy data:', error)
+        // Fallback to localStorage
+        try {
+          const storedProfile = localStorage.getItem('asha_user_profile')
+          if (storedProfile) {
+            const profileData = JSON.parse(storedProfile)
+            setPregnancyData({
+              isPregnant: profileData.isPregnant === true,
+              currentWeek: null,
+              expectedDeliveryDate: null,
+              trimester: null
+            })
+          }
+        } catch (e) {
+          console.error('Error reading localStorage:', e)
+        }
       } finally {
         setLoading(false)
       }
@@ -120,24 +171,29 @@ export default function PregnancyPage() {
           <Baby className="w-16 h-16 text-pink-300 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Pregnancy Care</h1>
           <p className="text-gray-600 mb-6">
-            This section is for pregnant women. Update your profile if you're expecting.
+            This section is for pregnant women.
           </p>
-          <Link href="/profile">
-            <Button className="bg-pink-500 hover:bg-pink-600">
-              Update Profile
-            </Button>
-          </Link>
         </div>
       </div>
     )
   }
 
+  // Calculate derived values
+  const progressPercent = pregnancyData.currentWeek ? (pregnancyData.currentWeek / 40) * 100 : 0
+  const daysRemaining = pregnancyData.expectedDeliveryDate ? daysUntilDelivery(pregnancyData.expectedDeliveryDate) : 0
+  const weekInfo = pregnancyData.currentWeek ? getWeekData(pregnancyData.currentWeek) : null
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Pregnancy Care</h1>
-        <p className="text-pink-600 font-hindi">गर्भावस्था देखभाल</p>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Pregnancy Care</h1>
+          <p className="text-pink-600 font-hindi">गर्भावस्था देखभाल</p>
+        </div>
       </div>
 
       {/* Progress Card */}
@@ -247,8 +303,8 @@ export default function PregnancyPage() {
                 >
                   <span className="text-xl">{sign.icon}</span>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{sign.name}</p>
-                    <p className="text-xs text-red-600 font-hindi">{sign.nameHindi}</p>
+                    <p className="text-sm font-medium text-gray-900">{sign.label}</p>
+                    <p className="text-xs text-red-600 font-hindi">{sign.labelHindi}</p>
                   </div>
                 </div>
               ))}

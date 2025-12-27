@@ -8,12 +8,14 @@ import {
   Clock,
   XCircle,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { format, isPast, isFuture, differenceInDays } from 'date-fns'
 
@@ -29,6 +31,7 @@ interface Vaccination {
 }
 
 export default function VaccinationsPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [vaccinations, setVaccinations] = React.useState<Vaccination[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -115,12 +118,17 @@ export default function VaccinationsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Vaccinations</h1>
-        <p className="text-pink-600 font-hindi">टीकाकरण</p>
-        <p className="text-gray-600 text-sm mt-2">
-          Track your vaccination schedule
-        </p>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Vaccinations</h1>
+          <p className="text-pink-600 font-hindi">टीकाकरण</p>
+          <p className="text-gray-600 text-sm mt-2">
+            Track your vaccination schedule
+          </p>
+        </div>
       </div>
 
       {/* Upcoming Vaccinations */}

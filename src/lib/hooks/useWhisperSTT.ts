@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 
 interface UseWhisperSTTReturn {
   isProcessing: boolean
   transcript: string
   error: string | null
-  processAudio: (audioBlob: Blob) => Promise<void>
+  processAudio: (audioBlob: Blob, language?: string) => Promise<void>
+  resetTranscript: () => void
   isSupported: boolean
 }
 
@@ -16,17 +17,30 @@ export function useWhisperSTT(): UseWhisperSTTReturn {
   const [error, setError] = useState<string | null>(null)
   const [isSupported] = useState(true) // Transformers.js works in all modern browsers
 
-  const processAudio = useCallback(async (audioBlob: Blob) => {
+  const processAudio = useCallback(async (audioBlob: Blob, language?: string) => {
     setIsProcessing(true)
     setError(null)
+    setTranscript('') // Clear previous transcript
 
     try {
-      // Convert blob to audio buffer for processing
-      const arrayBuffer = await audioBlob.arrayBuffer()
-      
       // Create FormData for API request
       const formData = new FormData()
-      formData.append('audio', audioBlob, 'recording.wav')
+      
+      // Determine file extension based on blob type
+      const mimeType = audioBlob.type || 'audio/webm'
+      let extension = 'webm'
+      if (mimeType.includes('mp4')) extension = 'mp4'
+      else if (mimeType.includes('wav')) extension = 'wav'
+      else if (mimeType.includes('ogg')) extension = 'ogg'
+      
+      formData.append('audio', audioBlob, `recording.${extension}`)
+      
+      // Add language if provided
+      if (language) {
+        formData.append('language', language)
+      }
+      
+      console.log('Sending audio to Whisper API...', { size: audioBlob.size, type: mimeType, language })
       
       // Send to our API endpoint that uses Whisper
       const response = await fetch('/api/whisper/transcribe', {
@@ -35,7 +49,31 @@ export function useWhisperSTT(): UseWhisperSTTReturn {
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        // Try to parse error response
+        let errorMessage = `HTTP error! status: ${response.status}`
+        try {
+          const contentType = response.headers.get('content-type')
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json()
+            errorMessage = errorData.error || errorData.message || errorMessage
+            if (errorData.details && process.env.NODE_ENV === 'development') {
+              // eslint-disable-next-line no-console
+              console.error('Error details:', errorData.details)
+            }
+          } else {
+            // If not JSON, try to get text
+            const text = await response.text()
+            if (text) {
+              errorMessage = text.substring(0, 200) // Limit length
+            }
+          }
+        } catch (parseError) {
+          // eslint-disable-next-line no-console
+          console.error('Failed to parse error response:', parseError)
+          // Use default error message
+        }
+        // eslint-disable-next-line no-throw-literal
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()
@@ -44,6 +82,7 @@ export function useWhisperSTT(): UseWhisperSTTReturn {
         throw new Error(result.error)
       }
 
+      console.log('Whisper transcription result:', result)
       setTranscript(result.transcript || '')
     } catch (err) {
       console.error('Whisper STT error:', err)
@@ -54,11 +93,17 @@ export function useWhisperSTT(): UseWhisperSTTReturn {
     }
   }, [])
 
+  const resetTranscript = useCallback(() => {
+    setTranscript('')
+    setError(null)
+  }, [])
+
   return {
     isProcessing,
     transcript,
     error,
     processAudio,
+    resetTranscript,
     isSupported,
   }
 }

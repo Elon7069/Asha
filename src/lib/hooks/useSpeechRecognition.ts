@@ -109,7 +109,14 @@ export function useSpeechRecognition(language: string = 'hi-IN'): UseSpeechRecog
         }
 
         recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-          console.error('Speech recognition error:', event.error)
+          // Handle speech recognition errors silently for better UX
+          // Only log non-critical errors
+          if (event.error !== 'no-speech' && event.error !== 'aborted') {
+            // Only log unexpected errors, not user-initiated actions
+            if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+              console.warn('Speech recognition error:', event.error)
+            }
+          }
           setState(prev => ({
             ...prev,
             error: event.error,

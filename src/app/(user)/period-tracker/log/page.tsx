@@ -51,6 +51,7 @@ export default function LogPeriodPage() {
   const [selectedSymptoms, setSelectedSymptoms] = React.useState<string[]>([])
   const [notes, setNotes] = React.useState('')
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [isSaved, setIsSaved] = React.useState(false)
 
   const toggleSymptom = (symptomId: string) => {
     setSelectedSymptoms(prev => 
@@ -78,7 +79,13 @@ export default function LogPeriodPage() {
       })
 
       if (response.ok) {
-        router.push('/period-tracker')
+        // Show saved confirmation
+        setIsSaved(true)
+        
+        // Redirect after 2 seconds
+        setTimeout(() => {
+          router.push('/period-tracker')
+        }, 2000)
       }
     } catch (error) {
       console.error('Error logging period:', error)
@@ -89,6 +96,29 @@ export default function LogPeriodPage() {
 
   return (
     <div className="space-y-6">
+      {/* Saved Confirmation */}
+      {isSaved && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: -20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4"
+        >
+          <Card className="bg-green-50 border-green-200 border-2 shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+                  <Check className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-green-700 text-lg">Saved!</h3>
+                  <p className="text-sm text-green-600 font-hindi">पीरियड सफलतापूर्वक लॉग हो गया!</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/period-tracker">

@@ -1,9 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { User, Session } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
-import { getSupabaseClient } from '@/lib/supabase/client'
 
 type UserRole = 'user' | 'asha_worker' | 'ngo_partner'
 
@@ -19,11 +17,12 @@ interface UserProfile {
   phone_number: string | null
   email: string | null
   // Add other profile fields as needed
+  [key: string]: any // Allow additional fields from localStorage
 }
 
 interface AuthContextType {
-  user: User | null
-  session: Session | null
+  user: { id: string } | null
+  session: { user: { id: string } } | null
   profile: UserProfile | null
   loading: boolean
   signOut: () => Promise<void>
@@ -33,177 +32,111 @@ interface AuthContextType {
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<User | null>(null)
-  const [session, setSession] = React.useState<Session | null>(null)
+  const [user, setUser] = React.useState<{ id: string } | null>(null)
+  const [session, setSession] = React.useState<{ user: { id: string } } | null>(null)
   const [profile, setProfile] = React.useState<UserProfile | null>(null)
   const [loading, setLoading] = React.useState(true)
   const router = useRouter()
 
-  const supabase = getSupabaseClient()
-
-  // Fetch user profile from database
-  const fetchProfile = React.useCallback(async (userId: string) => {
+  // Load profile from localStorage (bypassing auth)
+  const loadProfile = React.useCallback(() => {
     try {
-      // First, get the asha_users record by auth_id
-      const { data: ashaUser, error: userError } = await supabase
-        .from('asha_users')
-        .select(`
-          id,
-          auth_id,
-          full_name,
-          display_name,
-          profile_photo_url,
-          age,
-          preferred_language,
-          phone_number,
-          role
-        `)
-        .eq('auth_id', userId)
-        .maybeSingle()
+      const storedProfile = localStorage.getItem('asha_user_profile')
+      const storedRole = localStorage.getItem('asha_user_role')
 
-      if (!ashaUser || userError) {
-        console.log('No asha_users record found for auth_id:', userId)
+      if (storedProfile && storedRole) {
+        const profileData = JSON.parse(storedProfile)
+        
+        // Create user and session objects
+        const userId = profileData.id || `user_${Date.now()}`
+        const userObj = { id: userId }
+        const sessionObj = { user: userObj }
+
+        // Map profile data to UserProfile interface
+        const mappedProfile: UserProfile = {
+          id: profileData.id || userId,
+          user_id: profileData.id || userId,
+          role: (profileData.role || storedRole) as UserRole,
+          full_name: profileData.name || null,
+          display_name: profileData.name || null,
+          profile_photo_url: null,
+          age: profileData.age ? parseInt(profileData.age) : null,
+          preferred_language: 'hi',
+          phone_number: profileData.phone || null,
+          email: null,
+          ...profileData // Include all other fields
+        }
+
+        setUser(userObj)
+        setSession(sessionObj)
+        setProfile(mappedProfile)
+        return mappedProfile
+      } else {
+        setUser(null)
+        setSession(null)
+        setProfile(null)
         return null
       }
-
-      // Check asha_user_profiles (for regular users)
-      if (ashaUser.role === 'user') {
-        const { data: userProfile, error: profileError } = await supabase
-          .from('asha_user_profiles')
-          .select('id')
-          .eq('user_id', ashaUser.id)
-          .maybeSingle()
-
-        if (userProfile && !profileError) {
-          return {
-            id: ashaUser.id,
-            user_id: ashaUser.id,
-            role: 'user' as UserRole,
-            full_name: ashaUser.full_name,
-            display_name: ashaUser.display_name,
-            profile_photo_url: ashaUser.profile_photo_url,
-            age: ashaUser.age,
-            preferred_language: ashaUser.preferred_language || 'hi',
-            phone_number: ashaUser.phone_number,
-            email: null // Email is in auth.users, not in asha_users
-          } as UserProfile
-        }
-      }
-
-      // Check asha_worker_profiles
-      if (ashaUser.role === 'asha_worker') {
-        const { data: ashaData, error: ashaError } = await supabase
-          .from('asha_worker_profiles')
-          .select('id')
-          .eq('user_id', ashaUser.id)
-          .maybeSingle()
-
-        if (ashaData && !ashaError) {
-          return {
-            id: ashaUser.id,
-            user_id: ashaUser.id,
-            role: 'asha_worker' as UserRole,
-            full_name: ashaUser.full_name,
-            display_name: ashaUser.display_name,
-            profile_photo_url: ashaUser.profile_photo_url,
-            age: ashaUser.age,
-            preferred_language: ashaUser.preferred_language || 'hi',
-            phone_number: ashaUser.phone_number,
-            email: null
-          } as UserProfile
-        }
-      }
-
-      // Check ngo_partner_profiles
-      if (ashaUser.role === 'ngo_partner') {
-        const { data: ngoData, error: ngoError } = await supabase
-          .from('ngo_partner_profiles')
-          .select('id, email')
-          .eq('user_id', ashaUser.id)
-          .maybeSingle()
-
-        if (ngoData && !ngoError) {
-          return {
-            id: ashaUser.id,
-            user_id: ashaUser.id,
-            role: 'ngo_partner' as UserRole,
-            full_name: ashaUser.full_name,
-            display_name: ashaUser.display_name,
-            profile_photo_url: ashaUser.profile_photo_url,
-            age: ashaUser.age,
-            preferred_language: ashaUser.preferred_language || 'hi',
-            phone_number: ashaUser.phone_number,
-            email: ngoData.email
-          } as UserProfile
-        }
-      }
-
-      console.log('No profile found in any table for user:', userId)
-      return null
     } catch (error) {
-      console.error('Profile fetch error:', error)
+      console.error('Error loading profile from localStorage:', error)
+      setUser(null)
+      setSession(null)
+      setProfile(null)
       return null
     }
-  }, [supabase])
+  }, [])
 
   // Refresh profile data
-  const refreshProfile = React.useCallback(async () => {
-    if (user?.id) {
-      const profileData = await fetchProfile(user.id)
-      setProfile(profileData)
-    }
-  }, [user?.id, fetchProfile])
+  const refreshProfile = React.useCallback(() => {
+    loadProfile()
+  }, [loadProfile])
 
   // Sign out function
   const signOut = React.useCallback(async () => {
     try {
-      await supabase.auth.signOut()
+      localStorage.removeItem('asha_user_profile')
+      localStorage.removeItem('asha_user_role')
       setUser(null)
       setSession(null)
       setProfile(null)
-      router.push('/login')
+      router.push('/profile-setup')
     } catch (error) {
       console.error('Sign out error:', error)
     }
-  }, [supabase, router])
+  }, [router])
 
-  // Listen for auth state changes
+  // Initialize auth state from localStorage
   React.useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
+    // Load profile immediately
+    loadProfile()
+    setLoading(false)
 
-        if (session?.user) {
-          // Fetch or create user profile
-          const profileData = await fetchProfile(session.user.id)
-          setProfile(profileData)
-        } else {
-          setProfile(null)
-        }
-
-        setLoading(false)
+    // Listen for storage changes (in case profile is updated in another tab)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'asha_user_profile' || e.key === 'asha_user_role') {
+        loadProfile()
       }
-    )
-
-    return () => subscription.unsubscribe()
-  }, [supabase, fetchProfile])
-
-  // Get initial session
-  React.useEffect(() => {
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        setSession(session)
-        setUser(session.user)
-        const profileData = await fetchProfile(session.user.id)
-        setProfile(profileData)
-      }
-      setLoading(false)
     }
 
-    getInitialSession()
-  }, [supabase, fetchProfile])
+    // Listen for custom event for same-tab updates
+    const handleCustomStorageChange = () => {
+      loadProfile()
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('profile-updated', handleCustomStorageChange)
+
+    // Also check periodically (for same-tab updates)
+    const interval = setInterval(() => {
+      loadProfile()
+    }, 500) // Check more frequently
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('profile-updated', handleCustomStorageChange)
+      clearInterval(interval)
+    }
+  }, [loadProfile])
 
   return (
     <AuthContext.Provider value={{
@@ -233,20 +166,23 @@ export function useRoleRedirect() {
   const router = useRouter()
 
   const redirectToDashboard = React.useCallback(() => {
-    // If user exists but no profile, redirect to register to complete profile
+    // If user exists but no profile, redirect to profile setup
     if (user && !profile) {
-      router.push('/register')
+      router.push('/profile-setup')
       return
     }
 
-    if (!profile) return
+    if (!profile) {
+      router.push('/profile-setup')
+      return
+    }
 
     switch (profile.role) {
       case 'asha_worker':
         router.push('/dashboard')
         break
       case 'ngo_partner':
-        router.push('/ngo-dashboard')
+        router.push('/ngo/dashboard')
         break
       case 'user':
         router.push('/user-dashboard')

@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   Baby,
   Phone,
-  MapPin
+  MapPin,
+  ArrowLeft
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
 
 // Mock beneficiaries data
 const mockBeneficiaries = [
@@ -85,6 +87,7 @@ const mockBeneficiaries = [
 ]
 
 export default function BeneficiariesPage() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = React.useState('')
   const [filter, setFilter] = React.useState<'all' | 'pregnant' | 'high_risk'>('all')
 
@@ -106,9 +109,14 @@ export default function BeneficiariesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Beneficiaries</h1>
-        <p className="text-emerald-600 font-hindi">लाभार्थी</p>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Beneficiaries</h1>
+          <p className="text-emerald-600 font-hindi">लाभार्थी</p>
+        </div>
       </div>
 
       {/* Stats */}
@@ -177,7 +185,7 @@ export default function BeneficiariesPage() {
         className="space-y-3"
       >
         {filteredBeneficiaries.map((beneficiary) => (
-          <Link key={beneficiary.id} href={`/asha-worker/beneficiaries/${beneficiary.id}`}>
+          <Link key={beneficiary.id} href={`/beneficiaries/${beneficiary.id}`}>
             <Card className={cn(
               'hover:shadow-md transition-shadow',
               beneficiary.isHighRisk ? 'border-l-4 border-l-red-500' : 'border-emerald-100'

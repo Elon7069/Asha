@@ -13,43 +13,46 @@ export function AuthenticatedLayout({ children }: { children: React.ReactNode })
   React.useEffect(() => {
     if (loading) return
 
-    // If no user, redirect to login
-    if (!user) {
-      router.push('/login')
+    // Don't redirect if we're already on profile-setup page or auth pages
+    if (pathname === '/profile-setup' || pathname.startsWith('/login') || pathname.startsWith('/register')) {
       return
     }
 
-    // If no profile, redirect to register to complete profile setup
-    if (!profile) {
-      router.push('/register')
-      return
-    }
+    // Allow access even without a profile - users can complete it later
+    // Only redirect to appropriate dashboard if profile exists and user is on wrong route
+    if (profile) {
+      // Check if user is on correct role-based route
+      const isOnCorrectRoute = () => {
+        // Allow /learn for all roles
+        if (pathname === '/learn' || pathname.startsWith('/learn/')) {
+          return true
+        }
+        
+        switch (profile.role) {
+          case 'asha_worker':
+            return pathname.startsWith('/dashboard') || pathname.startsWith('/alerts') || pathname.startsWith('/beneficiaries') || pathname.startsWith('/voice-log')
+          case 'ngo_partner':
+            return pathname.startsWith('/ngo/')
+          default: // 'user'
+            return pathname.startsWith('/user') || pathname.startsWith('/asha-didi') || pathname.startsWith('/period-tracker') || pathname.startsWith('/pregnancy') || pathname.startsWith('/nutrition')
+        }
+      }
 
-    // Check if user is on correct role-based route
-    const isOnCorrectRoute = () => {
-      switch (profile.role) {
-        case 'asha_worker':
-          return pathname.startsWith('/dashboard') || pathname.startsWith('/alerts') || pathname.startsWith('/beneficiaries') || pathname.startsWith('/voice-log')
-        case 'ngo_partner':
-          return pathname.startsWith('/ngo-dashboard') || pathname.startsWith('/ngo-profile')
-        default: // 'user'
-          return pathname.startsWith('/user') || pathname.startsWith('/asha-didi') || pathname.startsWith('/voice-chat') || pathname.startsWith('/period-tracker') || pathname.startsWith('/pregnancy') || pathname.startsWith('/nutrition') || pathname === '/profile'
+      // Redirect to appropriate dashboard if on wrong route (but not for API routes)
+      if (!isOnCorrectRoute() && !pathname.startsWith('/api/')) {
+        switch (profile.role) {
+          case 'asha_worker':
+            router.push('/dashboard')
+            break
+          case 'ngo_partner':
+            router.push('/ngo/dashboard')
+            break
+          default:
+            router.push('/user-dashboard')
+        }
       }
     }
-
-    // Redirect to appropriate dashboard if on wrong route
-    if (!isOnCorrectRoute() && !pathname.startsWith('/api/')) {
-      switch (profile.role) {
-        case 'asha_worker':
-          router.push('/dashboard')
-          break
-        case 'ngo_partner':
-          router.push('/ngo-dashboard')
-          break
-        default:
-          router.push('/user-dashboard')
-      }
-    }
+    // If no profile, allow access to all pages - they can complete profile later
   }, [user, profile, loading, pathname, router])
 
   if (loading) {
@@ -67,10 +70,7 @@ export function AuthenticatedLayout({ children }: { children: React.ReactNode })
     )
   }
 
-  if (!user || !profile) {
-    return null // Will redirect in useEffect
-  }
-
+  // Allow rendering even without profile - users can access pages and complete profile later
   return (
     <RoleBasedLayout>
       {children}

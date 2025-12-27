@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { 
   Users, 
@@ -13,7 +14,8 @@ import {
   Circle,
   ArrowRight,
   Clock,
-  User
+  User,
+  ArrowLeft
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -89,6 +91,7 @@ const mockActiveAlerts = [
 ]
 
 export default function AshaWorkerDashboardPage() {
+  const router = useRouter()
   const [greeting, setGreeting] = React.useState('')
   const [currentTime, setCurrentTime] = React.useState('')
 
@@ -132,6 +135,17 @@ export default function AshaWorkerDashboardPage() {
 
   return (
     <div className="max-w-md mx-auto space-y-4 p-4">
+      {/* Back Button */}
+      <div className="flex items-center justify-start pt-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push('/profile-setup')}
+          className="text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+      </div>
       
       {/* Header with Time */}
       <motion.div
